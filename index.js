@@ -94,29 +94,34 @@ function generateRandomGameID() {
   );
 }
 
+function updateMoveHistory(move, gameID) {
+  ON_GOING_GAMES_LOOKUP[gameID].history.push(move);
+}
+
 function onConnect(socket) {
   console.log("Client connected...");
 
-  socket.on("subscribeGameKeyInit", function(clientKey) {
-    console.log("TCL: onConnect -> subScribeGameKey", clientKey);
-    socket.join(clientKey);
+  socket.on("subscribe", function(key) {
+    console.log("TCL: Subscribe to Room:", key);
+    socket.join(key);
+  });
+
+  socket.on("unsubscribe", function(key) {
+    console.log("TCL: Leave Channel", key);
+    socket.leave(key);
   });
 
   socket.on("getGameKey", function(clientKey) {
     console.log("TCL: onConnect -> getGameKey", clientKey);
     const gameKey = findGame();
-    console.log("TCL: onConnect -> FindGame()", gameKey);
-    // socket.to(clientKey).emit("getGameKey", gameKey);
-    io.in(clientKey).emit("getGameKey", gameKey);
-  });
-
-  socket.on("subscribe", function(gameRoomID) {
-    console.log("TCL: subscribeToGame -> gameRoomID", generateRandomGameID());
-    socket.join(gameRoomID);
+    console.log("TCL: Found Game:", gameKey);
+    io.in(clientKey).emit("getGameKey", { ...gameKey, clientKey });
   });
 
   socket.on("move", function({ move, promotion, gameRoomID }) {
-    console.log("TCL: onConnect -> move", move);
+    console.log(`TCL: onConnect -> move: ${move} for game: ${gameRoomID}`);
+    updateMoveHistory(move, gameRoomID);
+    console.log("ON Going", ON_GOING_GAMES_LOOKUP);
     socket.to(gameRoomID).emit("move", { move, promotion });
   });
 }
