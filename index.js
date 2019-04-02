@@ -1,12 +1,15 @@
 const app = require("express")();
-const http = require("http").Server(app);
+const http = require("http").Server(app, {
+  pingInterval: 10000,
+  pingTimeout: 5000
+});
 const io = require("socket.io")(http);
 const port = process.env.PORT || 3001;
 
 /**
- * OnGoing games Array
+ * OnGoing games Object
  */
-const ON_GOING_GAMES_LIST = [];
+let ON_GOING_GAMES_LIST = {};
 
 /**
  * A Queue of other players waiting to find
@@ -28,58 +31,99 @@ let ON_GOING_GAMES_LOOKUP = {};
   }
  * 
  */
-function findGame() {
+function findGame(clientKey) {
+  const resumeGame = checkIfOngoingGameExists(clientKey);
+  if (resumeGame) {
+    // The current player had left an early game in progess and he must rejoin.
+    return {
+      ...gameObjTemplate(resumeGame.id, null, resumeGame.color, clientKey),
+      history: resumeGame.history
+    };
+  }
   const waitingQueueLength = WAITING_QUEUE.length;
   if (waitingQueueLength === 0) {
     // Get new game object
-    const newGameObj = createNewGameObject();
+    const newGameObj = createNewGameObject(clientKey);
     WAITING_QUEUE.push(newGameObj);
     console.log("TCL: findGame -> WAITING_QUEUE", WAITING_QUEUE);
     return newGameObj;
   } else {
     // If people are in the queue remove the first players game id.
     const oldestWaitingPlayer = WAITING_QUEUE.shift();
-    const { id, created, colorAllocated } = oldestWaitingPlayer;
+    const { id, created, colorAllocated, clientKey1 } = oldestWaitingPlayer;
     const newOnGoingGameObj = createNewOnGoingGameLookup(
       id,
       created,
-      colorAllocated
+      colorAllocated,
+      clientKey1,
+      clientKey
     );
     ON_GOING_GAMES_LOOKUP = { ...ON_GOING_GAMES_LOOKUP, ...newOnGoingGameObj };
     console.log(
       "TCL: findGame -> ON_GOING_GAMES_LOOKUP",
       ON_GOING_GAMES_LOOKUP
     );
-    ON_GOING_GAMES_LIST.push(id);
-    return gameObjTemplate(id, created, getPlayerColor(colorAllocated));
+    ON_GOING_GAMES_LIST = {
+      ...ON_GOING_GAMES_LIST,
+      [clientKey]: { id, color: colorAllocated },
+      [clientKey1]: { id, color: getPlayerOppositeColor(colorAllocated) }
+    };
+    console.log("TCL: findGame -> ON_GOING_GAMES_LIST", ON_GOING_GAMES_LIST);
+    return gameObjTemplate(
+      id,
+      created,
+      getPlayerOppositeColor(colorAllocated),
+      clientKey
+    );
   }
 }
 
-function createNewGameObject() {
-  return gameObjTemplate(generateRandomGameID(), Date.now(), "w");
+function checkIfOngoingGameExists(clientKey) {
+  if (ON_GOING_GAMES_LIST[clientKey]) {
+    const { id } = ON_GOING_GAMES_LIST[clientKey];
+    return {
+      ...ON_GOING_GAMES_LIST[clientKey],
+      history: ON_GOING_GAMES_LOOKUP[id].history
+    };
+  } else {
+    return undefined;
+  }
 }
 
-function gameObjTemplate(id, created, color) {
+function createNewGameObject(clientKey) {
+  return gameObjTemplate(generateRandomGameID(), Date.now(), "w", clientKey);
+}
+
+function gameObjTemplate(id, created, color, clientKey) {
   return {
-    id: id,
-    created: created,
-    colorAllocated: color
+    id,
+    created,
+    colorAllocated: color,
+    clientKey1: clientKey
   };
 }
 
-function createNewOnGoingGameLookup(gameId, created, firstPlayerColor) {
+function createNewOnGoingGameLookup(
+  gameId,
+  created,
+  firstPlayerColor,
+  clientKey1,
+  clientKey2
+) {
   return {
     [gameId]: {
       created: created,
       started: Date.now(),
       history: [],
       player1: firstPlayerColor,
-      player2: getPlayerColor(firstPlayerColor)
+      player2: getPlayerOppositeColor(firstPlayerColor),
+      clientKey1,
+      clientKey2
     }
   };
 }
 
-function getPlayerColor(color) {
+function getPlayerOppositeColor(color) {
   return color === "w" ? "b" : "w";
 }
 //http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript
@@ -101,6 +145,10 @@ function updateMoveHistory(move, gameID) {
 function onConnect(socket) {
   console.log("Client connected...");
 
+  socket.on("disconnect", reason => {
+    console.log("Disconnect Reason", reason);
+  });
+
   socket.on("subscribe", function(key) {
     console.log("TCL: Subscribe to Room:", key);
     socket.join(key);
@@ -113,9 +161,15 @@ function onConnect(socket) {
 
   socket.on("getGameKey", function(clientKey) {
     console.log("TCL: onConnect -> getGameKey", clientKey);
-    const gameKey = findGame();
+    const gameKey = findGame(clientKey);
     console.log("TCL: Found Game:", gameKey);
     io.in(clientKey).emit("getGameKey", { ...gameKey, clientKey });
+  });
+
+  socket.on("isGameReady", function(gameRoomID) {
+    const player2Available = ON_GOING_GAMES_LOOKUP[gameRoomID] ? true : false;
+    console.log("Player 2", player2Available);
+    io.in(gameRoomID).emit("isGameReady", { player2Available });
   });
 
   socket.on("move", function({ move, promotion, gameRoomID }) {
