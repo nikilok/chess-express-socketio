@@ -37,7 +37,8 @@ function findGame(clientKey) {
     // The current player had left an early game in progess and he must rejoin.
     return {
       ...gameObjTemplate(resumeGame.id, null, resumeGame.color, clientKey),
-      history: resumeGame.history
+      history: resumeGame.history,
+      fen: resumeGame.fen
     };
   }
   const waitingQueueLength = WAITING_QUEUE.length;
@@ -97,7 +98,8 @@ function checkIfOngoingGameExists(clientKey) {
     const { id } = ON_GOING_GAMES_LIST[clientKey];
     return {
       ...ON_GOING_GAMES_LIST[clientKey],
-      history: ON_GOING_GAMES_LOOKUP[id].history
+      history: ON_GOING_GAMES_LOOKUP[id].history,
+      fen: ON_GOING_GAMES_LOOKUP[id].fen
     };
   } else {
     return undefined;
@@ -129,6 +131,7 @@ function createNewOnGoingGameLookup(
       created: created,
       started: Date.now(),
       history: [],
+      fen: "",
       player1: firstPlayerColor,
       player2: getPlayerOppositeColor(firstPlayerColor),
       clientKey1,
@@ -154,6 +157,10 @@ function generateRandomGameID() {
 
 function updateMoveHistory(move, gameID) {
   ON_GOING_GAMES_LOOKUP[gameID].history.push(move);
+}
+
+function updateFen(fen, gameID) {
+  ON_GOING_GAMES_LOOKUP[gameID].fen = fen;
 }
 
 function onConnect(socket) {
@@ -186,9 +193,10 @@ function onConnect(socket) {
     io.in(gameRoomID).emit("isGameReady", { player2Available });
   });
 
-  socket.on("move", function({ move, promotion, gameRoomID }) {
+  socket.on("move", function({ move, promotion, gameRoomID, fen }) {
     console.log(`TCL: onConnect -> move: ${move} for game: ${gameRoomID}`);
     updateMoveHistory(move, gameRoomID);
+    updateFen(fen, gameRoomID);
     console.log("ON Going", ON_GOING_GAMES_LOOKUP);
     socket.to(gameRoomID).emit("move", { move, promotion });
   });
