@@ -41,6 +41,11 @@ function findGame(clientKey) {
     };
   }
   const waitingQueueLength = WAITING_QUEUE.length;
+  const checkInQueue = checkIfAlreadyInWaitingQueue(clientKey);
+  if (checkInQueue) {
+    return checkInQueue;
+  }
+
   if (waitingQueueLength === 0) {
     // Get new game object
     const newGameObj = createNewGameObject(clientKey);
@@ -76,6 +81,10 @@ function findGame(clientKey) {
       clientKey
     );
   }
+}
+
+function checkIfAlreadyInWaitingQueue(clientKey) {
+  return WAITING_QUEUE.find(item => item.clientKey1 === clientKey);
 }
 
 function checkIfOngoingGameExists(clientKey) {
