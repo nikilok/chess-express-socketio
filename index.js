@@ -131,7 +131,7 @@ function createNewOnGoingGameLookup(
       created: created,
       started: Date.now(),
       history: [],
-      fen: "",
+      fen: undefined,
       player1: firstPlayerColor,
       player2: getPlayerOppositeColor(firstPlayerColor),
       clientKey1,
