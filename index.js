@@ -6,6 +6,14 @@ const http = require("http").Server(app, {
 const io = require("socket.io")(http);
 const port = process.env.PORT || 3001;
 
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept"
+  );
+  next();
+});
 /**
  * OnGoing games Object
  */
@@ -35,11 +43,7 @@ function findGame(clientKey) {
   const resumeGame = checkIfOngoingGameExists(clientKey);
   if (resumeGame) {
     // The current player had left an early game in progess and he must rejoin.
-    return {
-      ...gameObjTemplate(resumeGame.id, null, resumeGame.color, clientKey),
-      history: resumeGame.history,
-      fen: resumeGame.fen
-    };
+    return resumeGame;
   }
   const waitingQueueLength = WAITING_QUEUE.length;
   const checkInQueue = checkIfAlreadyInWaitingQueue(clientKey);
@@ -96,10 +100,15 @@ function checkIfAlreadyInWaitingQueue(clientKey) {
 function checkIfOngoingGameExists(clientKey) {
   if (ON_GOING_GAMES_LIST[clientKey]) {
     const { id } = ON_GOING_GAMES_LIST[clientKey];
-    return {
+    const resumeGame = {
       ...ON_GOING_GAMES_LIST[clientKey],
       history: ON_GOING_GAMES_LOOKUP[id].history,
       fen: ON_GOING_GAMES_LOOKUP[id].fen
+    };
+    return {
+      ...gameObjTemplate(resumeGame.id, null, resumeGame.color, clientKey),
+      history: resumeGame.history,
+      fen: resumeGame.fen
     };
   } else {
     return undefined;
@@ -203,6 +212,15 @@ function onConnect(socket) {
 }
 
 io.on("connection", onConnect);
+
+app.get("/gamestatus/:clientKey", (req, res) => {
+  const clientKey = req.params.clientKey;
+  if (checkIfOngoingGameExists(clientKey)) {
+    return res.send({ status: true });
+  } else {
+    return res.send({ status: false });
+  }
+});
 
 http.listen(port, function() {
   console.log("listening on *:" + port);
