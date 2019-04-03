@@ -55,7 +55,12 @@ function findGame(clientKey) {
   } else {
     // If people are in the queue remove the first players game id.
     const oldestWaitingPlayer = WAITING_QUEUE.shift();
-    const { id, created, colorAllocated, clientKey1 } = oldestWaitingPlayer;
+    const {
+      id,
+      created,
+      colorAllocated,
+      clientKey: clientKey1
+    } = oldestWaitingPlayer;
     const newOnGoingGameObj = createNewOnGoingGameLookup(
       id,
       created,
@@ -70,8 +75,8 @@ function findGame(clientKey) {
     );
     ON_GOING_GAMES_LIST = {
       ...ON_GOING_GAMES_LIST,
-      [clientKey]: { id, color: colorAllocated },
-      [clientKey1]: { id, color: getPlayerOppositeColor(colorAllocated) }
+      [clientKey1]: { id, color: colorAllocated },
+      [clientKey]: { id, color: getPlayerOppositeColor(colorAllocated) }
     };
     console.log("TCL: findGame -> ON_GOING_GAMES_LIST", ON_GOING_GAMES_LIST);
     return gameObjTemplate(
@@ -84,7 +89,7 @@ function findGame(clientKey) {
 }
 
 function checkIfAlreadyInWaitingQueue(clientKey) {
-  return WAITING_QUEUE.find(item => item.clientKey1 === clientKey);
+  return WAITING_QUEUE.find(item => item.clientKey === clientKey);
 }
 
 function checkIfOngoingGameExists(clientKey) {
@@ -108,7 +113,7 @@ function gameObjTemplate(id, created, color, clientKey) {
     id,
     created,
     colorAllocated: color,
-    clientKey1: clientKey
+    clientKey
   };
 }
 
