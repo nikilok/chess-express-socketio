@@ -177,6 +177,7 @@ function onConnect(socket) {
 
   socket.on("disconnect", reason => {
     console.log("Disconnect Reason", reason);
+    console.log("Socket ID", socket.id);
   });
 
   socket.on("subscribe", function(key) {
@@ -202,11 +203,41 @@ function onConnect(socket) {
     io.in(gameRoomID).emit("isGameReady", { player2Available });
   });
 
+  socket.on("leaveGame", function(clientKey, gameRoomID) {
+    console.log("TCL: LEAVE GAME -> clientKey", clientKey);
+    console.log("TCL: LEAVE GAME -> gameRoomID", gameRoomID);
+    const fetchGame = ON_GOING_GAMES_LOOKUP[gameRoomID];
+    console.log("TCL: onConnect -> fetchGame", fetchGame);
+    if (fetchGame) {
+      const players = [fetchGame.clientKey1, fetchGame.clientKey2];
+      console.log("TCL: onConnect -> players", players);
+      if (players.includes(clientKey)) {
+        console.log("validated to delete game");
+        /* Validated to leave game now. */
+        delete ON_GOING_GAMES_LIST[players[0]];
+        delete ON_GOING_GAMES_LIST[players[1]];
+        console.log(
+          "TCL: onConnect -> ON_GOING_GAMES_LIST",
+          ON_GOING_GAMES_LIST
+        );
+        delete ON_GOING_GAMES_LOOKUP[gameRoomID];
+        console.log(
+          "TCL: onConnect -> ON_GOING_GAMES_LOOKUP",
+          ON_GOING_GAMES_LOOKUP
+        );
+        io.in(gameRoomID).emit("leaveGame", {
+          leaveGame: true,
+          gameID: gameRoomID
+        });
+      }
+    }
+  });
+
   socket.on("move", function({ move, promotion, gameRoomID, fen }) {
     console.log(`TCL: onConnect -> move: ${move} for game: ${gameRoomID}`);
+    console.log("ON Going", ON_GOING_GAMES_LOOKUP);
     updateMoveHistory(move, gameRoomID);
     updateFen(fen, gameRoomID);
-    console.log("ON Going", ON_GOING_GAMES_LOOKUP);
     socket.to(gameRoomID).emit("move", { move, promotion });
   });
 }
