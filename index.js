@@ -22,13 +22,17 @@ let ON_GOING_GAMES_LIST = {};
 /**
  * A Queue of other players waiting to find
  */
-const WAITING_QUEUE = [];
+let WAITING_QUEUE = [];
 
 /**
  * Look up of on going game Information
  */
 let ON_GOING_GAMES_LOOKUP = {};
 
+/**
+ * Look up for all connected users socket id that recieved a game key
+ */
+let CONNECTED_SOCKETS_GAMEKEY = {};
 /**
  * Finds a game for a new player
  * 
@@ -172,12 +176,43 @@ function updateFen(fen, gameID) {
   ON_GOING_GAMES_LOOKUP[gameID].fen = fen;
 }
 
+function insertSocketID(gameKey, socketID) {
+  console.log("TCL: insertSocketID -> socketID", socketID);
+  console.log("TCL: insertSocketID -> gameKey", gameKey);
+  CONNECTED_SOCKETS_GAMEKEY = {
+    ...CONNECTED_SOCKETS_GAMEKEY,
+    [socketID]: { id: gameKey }
+  };
+}
+
 function onConnect(socket) {
   console.log("Client connected...");
+  console.log("TCL: -> WAITING_QUEUE", WAITING_QUEUE);
 
   socket.on("disconnect", reason => {
     console.log("Disconnect Reason", reason);
     console.log("Socket ID", socket.id);
+    const socketsWithGameKey = CONNECTED_SOCKETS_GAMEKEY[socket.id];
+    console.log("TCL: DISCONNECT -> socketsWithGameKey", socketsWithGameKey);
+    if (socketsWithGameKey) {
+      const { id } = socketsWithGameKey;
+      console.log("TCL: DISCONNECT - GAME KEY -> id", id);
+      const isOnGoingGame = ON_GOING_GAMES_LOOKUP[id];
+      console.log("TCL: DISCONNECT -> isOnGoingGame", isOnGoingGame);
+      // Remove the connected socket id from the CONNECTED_SOCKETS_GAMEKEY
+      delete CONNECTED_SOCKETS_GAMEKEY[socket.id];
+
+      if (isOnGoingGame) {
+        // If ongoing game broadcast to all players of the gameid about the disconnect and rejoin time
+        console.log("Emit Disconnect ----");
+        io.in(id).emit("playerDisconnect", { status: true });
+      } else {
+        // If not an ongoing game the only other possibility is he was in the waiting list.
+        // Find and remove object in waiting list having the matching gamekey id.
+        WAITING_QUEUE = WAITING_QUEUE.filter(player => player.id !== id);
+        console.log("TCL: DISCONECT -> WAITING_QUEUE", WAITING_QUEUE);
+      }
+    }
   });
 
   socket.on("subscribe", function(key) {
@@ -193,6 +228,7 @@ function onConnect(socket) {
   socket.on("getGameKey", function(clientKey) {
     console.log("TCL: onConnect -> getGameKey", clientKey);
     const gameKey = findGame(clientKey);
+    insertSocketID(gameKey.id, socket.id);
     console.log("TCL: Found Game:", gameKey);
     io.in(clientKey).emit("getGameKey", { ...gameKey, clientKey });
   });
@@ -204,27 +240,14 @@ function onConnect(socket) {
   });
 
   socket.on("leaveGame", function(clientKey, gameRoomID) {
-    console.log("TCL: LEAVE GAME -> clientKey", clientKey);
-    console.log("TCL: LEAVE GAME -> gameRoomID", gameRoomID);
     const fetchGame = ON_GOING_GAMES_LOOKUP[gameRoomID];
-    console.log("TCL: onConnect -> fetchGame", fetchGame);
     if (fetchGame) {
       const players = [fetchGame.clientKey1, fetchGame.clientKey2];
-      console.log("TCL: onConnect -> players", players);
       if (players.includes(clientKey)) {
-        console.log("validated to delete game");
         /* Validated to leave game now. */
         delete ON_GOING_GAMES_LIST[players[0]];
         delete ON_GOING_GAMES_LIST[players[1]];
-        console.log(
-          "TCL: onConnect -> ON_GOING_GAMES_LIST",
-          ON_GOING_GAMES_LIST
-        );
         delete ON_GOING_GAMES_LOOKUP[gameRoomID];
-        console.log(
-          "TCL: onConnect -> ON_GOING_GAMES_LOOKUP",
-          ON_GOING_GAMES_LOOKUP
-        );
         socket.to(gameRoomID).emit("leaveGame", {
           leaveGame: true,
           gameID: gameRoomID
