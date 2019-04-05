@@ -225,7 +225,7 @@ function onConnect(socket) {
           "TCL: onConnect -> ON_GOING_GAMES_LOOKUP",
           ON_GOING_GAMES_LOOKUP
         );
-        io.in(gameRoomID).emit("leaveGame", {
+        socket.to(gameRoomID).emit("leaveGame", {
           leaveGame: true,
           gameID: gameRoomID
         });
