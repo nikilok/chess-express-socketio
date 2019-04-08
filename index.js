@@ -148,7 +148,8 @@ function createNewOnGoingGameLookup(
       player1: firstPlayerColor,
       player2: getPlayerOppositeColor(firstPlayerColor),
       clientKey1,
-      clientKey2
+      clientKey2,
+      playersInGame: ["1"]
     }
   };
 }
@@ -185,6 +186,58 @@ function insertSocketID(gameKey, socketID) {
   };
 }
 
+function leaveGame(clientKey, gameRoomID) {
+  const fetchGame = ON_GOING_GAMES_LOOKUP[gameRoomID];
+  if (fetchGame) {
+    const players = [fetchGame.clientKey1, fetchGame.clientKey2];
+    if (players.includes(clientKey)) {
+      /* Validated to leave game now. */
+      delete ON_GOING_GAMES_LIST[players[0]];
+      delete ON_GOING_GAMES_LIST[players[1]];
+      const gameKill = ON_GOING_GAMES_LOOKUP[gameRoomID].gameKill;
+      if (gameKill) {
+        clearTimeout(gameKill);
+      }
+      delete ON_GOING_GAMES_LOOKUP[gameRoomID];
+      return true;
+    }
+  }
+  return false;
+}
+
+function initGameKillCountDown(gameID, timeToKill, clientKey, socket) {
+  ON_GOING_GAMES_LOOKUP[gameID].gameKill = setTimeout(() => {
+    if (leaveGame(clientKey, gameID)) {
+      socket.to(gameID).emit("terminateGame", {
+        leaveGame: true,
+        gameID
+      });
+    }
+  }, timeToKill);
+}
+
+function stopGameKillCountDown(gameID, socket) {
+  const gameKillHandle = ON_GOING_GAMES_LOOKUP[gameID].gameKill;
+  clearTimeout(gameKillHandle);
+  delete ON_GOING_GAMES_LOOKUP[gameID].gameKill;
+  socket.to(gameID).emit("playerReconnected", true);
+}
+
+function checkIfGameCancelInProgress(gameID, socket) {
+  if (ON_GOING_GAMES_LOOKUP[gameID]) {
+    ON_GOING_GAMES_LOOKUP[gameID].playersInGame.push("1");
+
+    // If the number of players currently in the game are equal to 2,
+    // and there is a gameKill timer, then stop that gameKill timer.
+    if (
+      ON_GOING_GAMES_LOOKUP[gameID].playersInGame.length === 2 &&
+      ON_GOING_GAMES_LOOKUP[gameID].gameKill
+    ) {
+      stopGameKillCountDown(gameID, socket);
+    }
+  }
+}
+
 function onConnect(socket) {
   console.log("Client connected...");
   console.log("TCL: -> WAITING_QUEUE", WAITING_QUEUE);
@@ -201,6 +254,25 @@ function onConnect(socket) {
       console.log("TCL: DISCONNECT -> isOnGoingGame", isOnGoingGame);
       // Remove the connected socket id from the CONNECTED_SOCKETS_GAMEKEY
       delete CONNECTED_SOCKETS_GAMEKEY[socket.id];
+      if (ON_GOING_GAMES_LOOKUP[id]) {
+        if (ON_GOING_GAMES_LOOKUP[id].playersInGame) {
+          ON_GOING_GAMES_LOOKUP[id].playersInGame.pop();
+
+          if (ON_GOING_GAMES_LOOKUP[id].playersInGame.length === 1) {
+            // If atleast one player is left in the game only then start the Init timeout kill.
+            // We do this so if the second player also leaves the board, we don't re init the
+            // game kill timer.
+
+            // 6 mins = 360000 ms
+            initGameKillCountDown(
+              id,
+              360000,
+              ON_GOING_GAMES_LOOKUP[id].clientKey1,
+              socket
+            );
+          }
+        }
+      }
 
       if (isOnGoingGame) {
         // If ongoing game broadcast to all players of the gameid about the disconnect and rejoin time
@@ -229,6 +301,7 @@ function onConnect(socket) {
     console.log("TCL: onConnect -> getGameKey", clientKey);
     const gameKey = findGame(clientKey);
     insertSocketID(gameKey.id, socket.id);
+    checkIfGameCancelInProgress(gameKey.id, socket);
     console.log("TCL: Found Game:", gameKey);
     io.in(clientKey).emit("getGameKey", { ...gameKey, clientKey });
   });
@@ -240,19 +313,11 @@ function onConnect(socket) {
   });
 
   socket.on("leaveGame", function(clientKey, gameRoomID) {
-    const fetchGame = ON_GOING_GAMES_LOOKUP[gameRoomID];
-    if (fetchGame) {
-      const players = [fetchGame.clientKey1, fetchGame.clientKey2];
-      if (players.includes(clientKey)) {
-        /* Validated to leave game now. */
-        delete ON_GOING_GAMES_LIST[players[0]];
-        delete ON_GOING_GAMES_LIST[players[1]];
-        delete ON_GOING_GAMES_LOOKUP[gameRoomID];
-        socket.to(gameRoomID).emit("leaveGame", {
-          leaveGame: true,
-          gameID: gameRoomID
-        });
-      }
+    if (leaveGame(clientKey, gameRoomID)) {
+      socket.to(gameRoomID).emit("leaveGame", {
+        leaveGame: true,
+        gameID: gameRoomID
+      });
     }
   });
 
