@@ -1,7 +1,7 @@
 const app = require("express")();
 const http = require("http").Server(app, {
-  pingInterval: 10000,
-  pingTimeout: 5000
+  pingInterval: 5000,
+  pingTimeout: 15000
 });
 const io = require("socket.io")(http);
 const port = process.env.PORT || 3001;
@@ -208,6 +208,8 @@ function leaveGame(clientKey, gameRoomID) {
 function initGameKillCountDown(gameID, timeToKill, clientKey, socket) {
   ON_GOING_GAMES_LOOKUP[gameID].gameKill = setTimeout(() => {
     if (leaveGame(clientKey, gameID)) {
+      console.log("TCL: initGameKillCountDown -> gameID", gameID);
+      console.log("TCL: initGameKillCountDown -> clientKey", clientKey);
       socket.to(gameID).emit("terminateGame", {
         leaveGame: true,
         gameID
@@ -217,6 +219,7 @@ function initGameKillCountDown(gameID, timeToKill, clientKey, socket) {
 }
 
 function stopGameKillCountDown(gameID, socket) {
+  console.log("TCL: stopGameKillCountDown -> gameID", gameID);
   const gameKillHandle = ON_GOING_GAMES_LOOKUP[gameID].gameKill;
   clearTimeout(gameKillHandle);
   delete ON_GOING_GAMES_LOOKUP[gameID].gameKill;
