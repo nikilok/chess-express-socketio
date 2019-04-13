@@ -1,6 +1,6 @@
 {
   "name": "chess-express-socketio",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "The backend service for the Chess GUI. It faciliates initalizing games, transporting game moves via sockets and more.",
   "main": "index.js",
   "scripts": {
