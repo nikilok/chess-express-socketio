@@ -22,3 +22,5 @@ steps:
       ]
     env:
       - "PORT=$_PORT"
+      - "PING_INTERVAL=$_PING_INTERVAL"
+      - "PING_TIMEOUT=$_PING_TIMEOUT"

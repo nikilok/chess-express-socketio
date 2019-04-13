@@ -1,7 +1,7 @@
 const app = require("express")();
 const http = require("http").Server(app, {
-  pingInterval: 11000,
-  pingTimeout: 20000
+  pingInterval: process.env.PING_INTERVAL || 5000,
+  pingTimeout: process.env.PING_TIMEOUT || 15000
 });
 const io = require("socket.io")(http);
 const port = process.env.PORT || 3001;
