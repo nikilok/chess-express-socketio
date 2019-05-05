@@ -5,8 +5,17 @@ const http = require("http").Server(app, {
 });
 const io = require("socket.io")(http);
 const port = process.env.PORT || 80;
-const cors = require("cors");
-app.use(cors);
+
+/* Enabling CORS */
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept"
+  );
+  next();
+});
+
 /**
  * OnGoing games Object
  */
