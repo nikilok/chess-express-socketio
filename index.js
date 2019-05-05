@@ -267,9 +267,10 @@ function onConnect(socket) {
             // game kill timer.
 
             // 6 mins = 360000 ms
+            // 1 h = 60 * 60000 = 3600000 ms
             initGameKillCountDown(
               id,
-              360000,
+              3600000,
               ON_GOING_GAMES_LOOKUP[id].clientKey1,
               socket
             );
