@@ -4,7 +4,7 @@ const http = require("http").Server(app, {
   pingTimeout: process.env.PING_TIMEOUT || 15000
 });
 const io = require("socket.io")(http);
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 80;
 const cors = require("cors");
 app.use(cors);
 /**
@@ -339,5 +339,5 @@ app.get("/gamestatus/:clientKey", (req, res) => {
 });
 
 http.listen(port, function() {
-  console.log("listening on *:" + port);
+  console.log(`Chess Node Server up on : ${port}`);
 });

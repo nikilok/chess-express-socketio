@@ -9,4 +9,4 @@ ADD ./ /usr/src/app/
 RUN npm install
 
 EXPOSE ${PORT}
-CMD [ "node", "index.js" ]
+ENTRYPOINT [ "node", "index.js" ]
